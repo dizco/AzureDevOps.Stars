@@ -12,7 +12,8 @@ public static class ServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateDataAnnotations();
 
-		services.AddTransient<Services.RepositoryAggregator>();
+		services.AddTransient<RepositoryAggregator>();
+		services.AddTransient<RepositoryService>();
 
 		return services;
 	}

@@ -4,11 +4,13 @@ using AzureDevOps.InnerSource.Common;
 using AzureDevOps.InnerSource.Common.Configuration;
 using AzureDevOps.InnerSource.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace AzureDevOps.InnerSource.Controllers;
 
+[Route("stars")]
 public class StarsController : Controller
 {
     private readonly IOptionsMonitor<DevOpsOptions> _options;
@@ -24,42 +26,43 @@ public class StarsController : Controller
 
     private DevOpsOptions Options => _options.CurrentValue;
 
-    // NOTE: This endpoint is a GET because it is not possible to make POST requests from a markdown file
     [Authorize]
-    [HttpGet("star")]
-    public async Task<IActionResult> Star(string project, string repository)
+    [EnableCors("AzureDevOpsExtension")]
+    [HttpPost("{projectName}/{repositoryName}")]
+    public async Task<IActionResult> PostStar(string projectName, string repositoryName)
     {
-        if (string.IsNullOrWhiteSpace(project) || string.IsNullOrWhiteSpace(repository))
+        // TODO: Use repository id because it is more url-safe
+        if (string.IsNullOrWhiteSpace(projectName) || string.IsNullOrWhiteSpace(repositoryName))
             throw new ValidationException("Required parameters were not provided");
 
         var principal = new Principal
         {
-            Id = User.FindFirstValue("oid") ?? throw new Exception("Expected to find an oid claim"),
+            Id = User.FindFirstValue("ado-userid") ?? throw new Exception("Expected to find an ado-userid claim"),
             Email = User.FindFirstValue("email")
         };
 
         await _starService.StarAsync(principal, new Repository
         {
             Organization = Options.Organization,
-            Project = project,
-            Name = repository
+            Project = projectName,
+            Name = repositoryName
         });
 
         // Redirect back to the original repository
-        return Redirect($"https://dev.azure.com/{Options.Organization}/{project}/_git/{repository}");
+        return Json(new {});
     }
 
     // TODO: Think about how to authenticate this
-    [HttpGet("stars/{project}/{repositoryName}")]
-    public async Task<IActionResult> GetStars(string project, string repositoryName, CancellationToken ct)
+    [HttpGet("{projectName}/{repositoryName}")]
+    public async Task<IActionResult> GetStars(string projectName, string repositoryName, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(project) || string.IsNullOrWhiteSpace(repositoryName))
+        if (string.IsNullOrWhiteSpace(projectName) || string.IsNullOrWhiteSpace(repositoryName))
             throw new ValidationException("Required parameters were not provided");
 
         var repository = new Repository
         {
             Organization = Options.Organization,
-            Project = project,
+            Project = projectName,
             Name = repositoryName
         };
         var stars = await _starService.GetStarCountAsync(repository);
